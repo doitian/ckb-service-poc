@@ -51,7 +51,7 @@ pub struct TransactionPoolController {
 impl<S: ChainStore> Service for TransactionPoolService<S> {
     type Controller = TransactionPoolController;
 
-    fn start<TS: ToString>(self, thread_name: Option<S>) -> (JoinHandle<()>, Self::Controller) {
+    fn start<TS: ToString>(self, thread_name: Option<TS>) -> (JoinHandle<()>, Self::Controller) {
         let mut thread_builder = thread::Builder::new();
         // Mainly for test: give a empty thread_name
         if let Some(name) = thread_name {
@@ -78,6 +78,9 @@ impl<S: ChainStore> Service for TransactionPoolService<S> {
     }
 }
 
+pub enum PoolError {
+}
+
 impl TransactionPoolController {
 
     pub fn get_proposal_commit_txs(
@@ -88,7 +91,7 @@ impl TransactionPoolController {
         (vec![], vec![])
     }
 
-    pub fn add_transaction(&self, tx: IndexedTransaction) -> Result<InsertionResult, > {
+    pub fn add_transaction(&self, tx: IndexedTransaction) -> Result<InsertionResult, PoolError> {
         Ok(InsertionResult::Unknown)
     }
 }

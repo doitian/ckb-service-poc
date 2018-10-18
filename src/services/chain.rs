@@ -1,6 +1,9 @@
 
 use std::thread::{self, JoinHandle};
 
+use util::{
+    BlockNumber,
+};
 use service::{Request, Service};
 
 pub struct ChainService {
@@ -25,5 +28,21 @@ impl Service for ChainService {
                 }
             }).expect("Start ChainService failed!");
         (join_handle, ChainController{})
+    }
+}
+
+pub struct TipHeader {
+    number: BlockNumber,
+}
+
+impl TipHeader {
+    pub fn number(&self) -> BlockNumber {
+        0
+    }
+}
+
+impl ChainController {
+    pub fn tip_header(&self) -> TipHeader {
+        TipHeader { number: 0 }
     }
 }

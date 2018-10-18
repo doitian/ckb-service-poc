@@ -4,10 +4,13 @@ use std::thread::JoinHandle;
 use std::sync::Arc;
 use channel::{self, Sender, Receiver};
 use fnv::FnvHashMap;
+
+use service::{Request, Service};
 use services::notify::{NotifyController, MINER_SUBSCRIBER};
 use services::chain::ChainController;
 use services::tx_pool::TransactionPoolController;
 use util::{
+    H256,
     IndexedBlock,
     Shared,
     BlockNumber,
@@ -37,9 +40,9 @@ where
         chain: ChainController,
         tx_pool: TransactionPoolController,
         notify: &NotifyController,
-    )
+    ) -> MinerService<S, P>
     {
-        let mining_number = chain.tip_header().header.number;
+        let mining_number = chain.tip_header().number();
         let new_transaction_receiver = notify.subscribe_new_transaction(MINER_SUBSCRIBER);
         let new_tip_receiver = notify.subscribe_new_tip(MINER_SUBSCRIBER);
 
@@ -48,7 +51,6 @@ where
             pow,
             chain,
             tx_pool,
-            notify,
             new_transaction_receiver,
             new_tip_receiver,
             mining_number,
@@ -65,13 +67,14 @@ pub struct MinerController {
     uncle_sender: Sender<IndexedBlock>,
 }
 
-impl<P> Service for MinerService<P>
+impl<S, P> Service for MinerService<S, P>
 where
-    P: PowEngine + 'static,
+    S: ChainStore,
+    P: PowEngine,
 {
     type Controller = MinerController;
 
-    fn start<S: ToString>(mut self, thread_name: Option<S>) -> (JoinHandle<()>, Self::Controller) {
+    fn start<TS: ToString>(mut self, thread_name: Option<TS>) -> (JoinHandle<()>, Self::Controller) {
         let mut thread_builder = thread::Builder::new();
         // Mainly for test: give a empty thread_name
         if let Some(name) = thread_name {

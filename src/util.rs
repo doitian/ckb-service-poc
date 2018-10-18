@@ -4,7 +4,10 @@ use std::sync::Arc;
 pub type Capacity = u64;
 pub type BlockNumber = u64;
 
-#[derive(Clone, Default, Debug)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Default)]
+pub struct H256 {}
+
+#[derive(Clone, Debug)]
 pub struct Shared<S> {
     pub consensus: Consensus,
     pub store: Arc<S>,
@@ -29,6 +32,12 @@ pub struct Consensus {
 
 #[derive(Clone, Eq, PartialEq, Default, Debug)]
 pub struct IndexedBlock {}
+
+impl IndexedBlock {
+    pub fn hash(&self) -> H256 {
+        H256::default()
+    }
+}
 
 #[derive(Clone, Eq, PartialEq, Default, Debug)]
 pub struct IndexedTransaction {}
@@ -57,6 +66,9 @@ pub struct CuckooEngine {
     cuckoo: Cuckoo,
 }
 
-pub trait PowEngine {}
+
+pub trait PowEngine {
+    fn init(&self, number: BlockNumber) {}
+}
 
 impl PowEngine for CuckooEngine {}
