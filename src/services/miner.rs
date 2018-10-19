@@ -67,21 +67,22 @@ pub struct MinerController {
     uncle_sender: Sender<IndexedBlock>,
 }
 
-impl<S, P> Service for MinerService<S, P>
+pub struct MinerReceivers {
+    uncle_receiver: Receiver<IndexedBlock>,
+}
+
+impl<S, P> MinerService<S, P>
 where
     S: ChainStore,
     P: PowEngine,
 {
-    type Controller = MinerController;
-
-    fn start<TS: ToString>(mut self, thread_name: Option<TS>) -> (JoinHandle<()>, Self::Controller) {
-        let (uncle_sender, uncle_receiver) = channel::bounded::<IndexedBlock>(32);
-        let join_handle = thread::spawn(move || {
+    fn start(mut self, receivers: MinerReceivers) -> JoinHandle<()> {
+        thread::spawn(move || {
             self.pow.init(self.mining_number);
 
             loop {
                 select! {
-                    recv(uncle_receiver, msg) => match msg {
+                    recv(receivers.uncle_receiver, msg) => match msg {
                         Some(uncle_block) => {
                             self.candidate_uncles.insert(uncle_block.hash(), uncle_block);
                         }
@@ -92,12 +93,19 @@ where
                     }
                 }
             }
-        }).expect("Start miner service fialed");
-        (join_handle, MinerController { uncle_sender })
+        })
     }
 }
 
 impl MinerController {
+    pub fn new() -> (MinerController, MinerReceivers) {
+        let (uncle_sender, uncle_receiver) = channel::bounded::<IndexedBlock>(32);
+        (
+            MinerController { uncle_sender },
+            MinerReceivers { uncle_receiver },
+        )
+    }
+
     pub fn add_uncle(&self, uncle_block: IndexedBlock) {
         self.uncle_sender.send(uncle_block);
     }

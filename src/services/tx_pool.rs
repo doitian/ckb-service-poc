@@ -7,13 +7,13 @@ use std::error::Error;
 use channel::{Sender, Receiver};
 
 use util::{
+    Request,
     Shared,
     ChainStore,
     IndexedBlock,
     IndexedTransaction,
     InsertionResult,
 };
-use service::{Request, Service};
 use services::notify::{
     NotifyController,
     ForkBlocks,
@@ -49,43 +49,9 @@ pub struct TransactionPoolController {
     add_transaction_sender: Sender<Request<IndexedTransaction, Result<InsertionResult, PoolError>>>,
 }
 
-impl<S: ChainStore> Service for TransactionPoolService<S> {
-    type Controller = TransactionPoolController;
-
-    fn start<TS: ToString>(self, thread_name: Option<TS>) -> (JoinHandle<()>, Self::Controller) {
-        let (proposal_commit_txs_sender, proposal_commit_txs_receiver) = channel::bounded(32);
-        let (add_transaction_sender, add_transaction_receiver) = channel::bounded(64);
-        let join_handle = thread::spawn(move || {
-            loop {
-                select! {
-                    recv(self.new_tip_receiver, msg) => match msg {
-                        Some(block) => self.reconcile_block(&block),
-                        None => error!("channel closed")
-                    }
-                    recv(self.switch_fork_receiver, msg) => match msg {
-                        Some(blocks) => self.switch_fork(&blocks),
-                        None => error!("channel closed")
-                    }
-                    recv(proposal_commit_txs_receiver, msg) => match msg {
-                        Some(Request { responsor, arguments: (max_prop, max_tx) }) => {
-                            responsor.send(self.get_proposal_commit_txs(max_prop, max_tx));
-                        },
-                        None => error!("channel closed"),
-                    }
-                    recv(add_transaction_receiver, msg) => match msg {
-                        Some(Request { responsor, arguments: transaction }) => {
-                            responsor.send(self.add_transaction(transaction));
-                        },
-                        None => error!("channel closed"),
-                    }
-                }
-            }
-        }).expect("Start transaction pool failed");
-        (
-            join_handle,
-            TransactionPoolController { proposal_commit_txs_sender }
-        )
-    }
+pub struct TransactionPoolReceivers {
+    proposal_commit_txs_receiver: Receiver<Request<(usize, usize), (Vec<IndexedTransaction>, Vec<IndexedTransaction>)>>,
+    add_transaction_receiver: Receiver<Request<IndexedTransaction, Result<InsertionResult, PoolError>>>,
 }
 
 #[derive(Debug)]
@@ -109,6 +75,20 @@ pub enum PoolError {
 }
 
 impl TransactionPoolController {
+    pub fn new() -> (TransactionPoolController, TransactionPoolReceivers) {
+        let (proposal_commit_txs_sender, proposal_commit_txs_receiver) = channel::bounded(32);
+        let (add_transaction_sender, add_transaction_receiver) = channel::bounded(64);
+        (
+            TransactionPoolController {
+                proposal_commit_txs_sender,
+                add_transaction_sender,
+            },
+            TransactionPoolReceivers {
+                proposal_commit_txs_receiver,
+                add_transaction_receiver,
+            }
+        )
+    }
 
     pub fn get_proposal_commit_txs(
         max_prop: usize,
@@ -134,6 +114,34 @@ impl TransactionPoolController {
 }
 
 impl TransactionPoolService {
+    pub fn start(self, receivers: TransactionPoolReceivers) -> JoinHandle<()> {
+        thread::spawn(move || {
+            loop {
+                select! {
+                    recv(self.new_tip_receiver, msg) => match msg {
+                        Some(block) => self.reconcile_block(&block),
+                        None => error!("channel closed")
+                    }
+                    recv(self.switch_fork_receiver, msg) => match msg {
+                        Some(blocks) => self.switch_fork(&blocks),
+                        None => error!("channel closed")
+                    }
+                    recv(receivers.proposal_commit_txs_receiver, msg) => match msg {
+                        Some(Request { responsor, arguments: (max_prop, max_tx) }) => {
+                            responsor.send(self.get_proposal_commit_txs(max_prop, max_tx));
+                        },
+                        None => error!("channel closed"),
+                    }
+                    recv(receivers.add_transaction_receiver, msg) => match msg {
+                        Some(Request { responsor, arguments: transaction }) => {
+                            responsor.send(self.add_transaction(transaction));
+                        },
+                        None => error!("channel closed"),
+                    }
+                }
+            }
+        })
+    }
 
     fn get_proposal_commit_txs(
         max_prop: usize,

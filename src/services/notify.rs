@@ -6,8 +6,10 @@ use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 
-use util::IndexedBlock;
-use service::{Request, Service};
+use util::{
+    Request,
+    IndexedBlock,
+};
 
 pub const MINER_SUBSCRIBER: &str = "miner";
 pub const TXS_POOL_SUBSCRIBER: &str = "txs_pool";
@@ -35,10 +37,8 @@ pub struct NotifyController {
     switch_fork_notifier: Sender<MsgSwitchFork>,
 }
 
-impl Service for NotifyService {
-    type Controller = NotifyController;
-
-    fn start<S: ToString>(self, thread_name: Option<S>) -> (JoinHandle<()>, Self::Controller) {
+impl NotifyService {
+    pub fn start<S: ToString>(self, thread_name: Option<S>) -> (JoinHandle<()>, NotifyController) {
         let (signal_sender, signal_receiver) = channel::bounded::<()>(1);
         let (new_transaction_register, new_transaction_register_receiver) = channel::bounded(2);
         let (new_tip_register, new_tip_register_receiver) = channel::bounded(2);
@@ -99,9 +99,7 @@ impl Service for NotifyService {
             },
         )
     }
-}
 
-impl NotifyService {
     fn handle_register_new_transaction(
         subscribers: &mut FnvHashMap<String, Sender<MsgNewTransaction>>,
         msg: Option<Request<(String, usize), Receiver<MsgNewTransaction>>>,

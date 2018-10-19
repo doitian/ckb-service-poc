@@ -1,5 +1,6 @@
 
 use std::sync::Arc;
+use channel::Sender;
 
 pub type Capacity = u64;
 pub type BlockNumber = u64;
@@ -13,10 +14,18 @@ pub struct Shared<S> {
     pub store: Arc<S>,
 }
 
-impl<S: ChainStore> Shared<S> {
+pub struct Request<A, R> {
+    pub responsor: Sender<R>,
+    pub arguments: A,
 }
 
-#[derive(Clone, PartialEq, Debug)]
+impl<S: ChainStore> Shared<S> {
+    pub fn new(consensus: Consensus, store: S) {
+        Shared {consensus, store}
+    }
+}
+
+#[derive(Clone, PartialEq, Debug, Default)]
 pub struct Consensus {
     pub genesis_block: IndexedBlock,
     pub initial_block_reward: Capacity,
@@ -54,21 +63,21 @@ pub trait ChainStore {}
 impl ChainStore for RocksDBStore {}
 
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Cuckoo {
     max_vertex: usize,
     max_edge: usize,
     cycle_length: usize,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct CuckooEngine {
     cuckoo: Cuckoo,
 }
-
 
 pub trait PowEngine {
     fn init(&self, number: BlockNumber) {}
 }
 
 impl PowEngine for CuckooEngine {}
+
