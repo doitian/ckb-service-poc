@@ -75,31 +75,24 @@ where
     type Controller = MinerController;
 
     fn start<TS: ToString>(mut self, thread_name: Option<TS>) -> (JoinHandle<()>, Self::Controller) {
-        let mut thread_builder = thread::Builder::new();
-        // Mainly for test: give a empty thread_name
-        if let Some(name) = thread_name {
-            thread_builder = thread_builder.name(name.to_string());
-        }
-
         let (uncle_sender, uncle_receiver) = channel::bounded::<IndexedBlock>(32);
-        let join_handle = thread_builder
-            .spawn(move || {
-                self.pow.init(self.mining_number);
+        let join_handle = thread::spawn(move || {
+            self.pow.init(self.mining_number);
 
-                loop {
-                    select! {
-                        recv(uncle_receiver, msg) => match msg {
-                            Some(uncle_block) => {
-                                self.candidate_uncles.insert(uncle_block.hash(), uncle_block);
-                            }
-                            None => error!(target: "miner", "uncle_receiver closed")
+            loop {
+                select! {
+                    recv(uncle_receiver, msg) => match msg {
+                        Some(uncle_block) => {
+                            self.candidate_uncles.insert(uncle_block.hash(), uncle_block);
                         }
-                        default => {
-                            self.commit_new_block();
-                        }
+                        None => error!(target: "miner", "uncle_receiver closed")
+                    }
+                    default => {
+                        self.commit_new_block();
                     }
                 }
-            }).expect("Start miner service fialed");
+            }
+        }).expect("Start miner service fialed");
         (join_handle, MinerController { uncle_sender })
     }
 }

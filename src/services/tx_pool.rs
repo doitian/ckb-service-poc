@@ -52,25 +52,18 @@ impl<S: ChainStore> Service for TransactionPoolService<S> {
     type Controller = TransactionPoolController;
 
     fn start<TS: ToString>(self, thread_name: Option<TS>) -> (JoinHandle<()>, Self::Controller) {
-        let mut thread_builder = thread::Builder::new();
-        // Mainly for test: give a empty thread_name
-        if let Some(name) = thread_name {
-            thread_builder = thread_builder.name(name.to_string());
-        }
-
-        let join_handle = thread_builder
-            .spawn(move || loop {
-                select! {
-                    recv(self.new_tip_receiver, msg) => match msg {
-                        Some(block) => self.reconcile_block(&block),
-                        None => error!("channel closed")
-                    }
-                    recv(self.switch_fork_receiver, msg) => match msg {
-                        Some(blocks) => self.switch_fork(&blocks),
-                        None => error!("channel closed")
-                    }
+        let join_handle = thread::spawn(move || loop {
+            select! {
+                recv(self.new_tip_receiver, msg) => match msg {
+                    Some(block) => self.reconcile_block(&block),
+                    None => error!("channel closed")
                 }
-            }).expect("Start transaction pool failed");
+                recv(self.switch_fork_receiver, msg) => match msg {
+                    Some(blocks) => self.switch_fork(&blocks),
+                    None => error!("channel closed")
+                }
+            }
+        }).expect("Start transaction pool failed");
         (
             join_handle,
             TransactionPoolController {}
