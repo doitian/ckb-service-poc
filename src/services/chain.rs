@@ -30,11 +30,6 @@ pub struct ChainReceivers {
     process_block_receiver: Receiver<Request<IndexedBlock, Result<(), Error>>>,
 }
 
-impl Service for ChainService {
-    type Controller = ChainController;
-
-}
-
 impl ChainService {
     pub fn new(
         shared: Shared<CS>,
