@@ -1,10 +1,11 @@
 
+use std::sync::Arc;
 use channel::{self, Sender, Receiver};
 
 use util::{
     Request,
     IndexedBlock
-}
+};
 
 pub struct BlockVerifierService<CS, P> {
     shared: Shared<CS>,
@@ -47,10 +48,10 @@ where
     pub fn start(self, receivers: BlockVerifierReceivers) -> JoinHandle<()> {
         thread::spawn(move || loop {
             select! {
-                recv(receivers.block_receiver, msg) => {
+                recv(receivers.block_receiver, msg) => match msg {
                     Some(Request { responsor, arguments: block }) => {
                         responsor.send(self.verify(block));
-                    }
+                    },
                     None => error!("channel closed")
                 }
             }

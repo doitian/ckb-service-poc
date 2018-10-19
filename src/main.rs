@@ -6,14 +6,13 @@ extern crate parking_lot;
 extern crate fnv;
 
 mod util;
-mod service;
 mod services;
 
 use util::{
     Shared,
     CuckooEngine,
     Consensus,
-}
+};
 use services::chain::{
     ChainService,
     ChainController,

@@ -42,10 +42,11 @@ impl ChainService {
     pub fn start(mut self, receivers: ChainReceivers) -> JoinHandle<()> {
         thread::spawn(move || loop {
             select! {
-                recv(receivers.process_block_receiver, msg) => {
+                recv(receivers.process_block_receiver, msg) => match msg {
                     Some(Request { responsor, arguments: block }) => {
                         responsor.send(self.process_block(block));
-                    }
+                    },
+                    None => error!("channel closed"),
                 }
             }
         })
